@@ -1,0 +1,10 @@
+alter table public.employees enable row level security;
+alter table public.work_courts enable row level security;
+alter table public.pause_reasons enable row level security;
+alter table public.picking_sessions enable row level security;
+alter table public.picking_pauses enable row level security;
+alter table public.quality_controls enable row level security;
+alter table public.users_profile enable row level security;
+alter table public.roles enable row level security;
+alter table public.settings enable row level security;
+alter table public.audit_logs enable row level security;
