@@ -8,7 +8,7 @@ import { DataState } from "../../components/ui/DataState";
 import { Field, Input, Select } from "../../components/ui/Field";
 import { DataTable } from "../../components/tables/DataTable";
 import { useOperationsData } from "../../hooks/useOperationsData";
-import { fromDateTimeLocal, toDateTimeLocal } from "../../lib/formatters/date";
+import { toDateTimeLocal } from "../../lib/formatters/date";
 import { formatDuration, formatNumber, formatPercent } from "../../lib/formatters/number";
 import { formatPickingStatus } from "../../lib/formatters/status";
 import type { PickingSession } from "../../types/domain";
@@ -78,11 +78,12 @@ export function TeamPickingPage() {
       setMessage("Ese operario ya tiene una actividad en curso o pausada.");
       return;
     }
+    const actualStart = new Date();
     const result = await startSession({
       employeeNumber: draft.employeeNumber,
       plannedPackages: Number(draft.plannedPackages),
       courtId: draft.courtId,
-      startedAt: fromDateTimeLocal(draft.startedAt),
+      startedAt: actualStart.toISOString(),
     });
     if (result.error) {
       setMessage(result.error);

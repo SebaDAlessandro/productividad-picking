@@ -91,7 +91,14 @@ interface OperationsContextValue {
 const OperationsContext = createContext<OperationsContextValue | null>(null);
 
 function getErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : "Ocurrio un error al operar con Supabase.";
+  if (error instanceof Error) return error.message;
+  if (error && typeof error === "object") {
+    const supabaseError = error as { message?: unknown; details?: unknown; hint?: unknown; code?: unknown };
+    const parts = [supabaseError.message, supabaseError.details, supabaseError.hint, supabaseError.code]
+      .filter((value): value is string => typeof value === "string" && value.length > 0);
+    if (parts.length > 0) return parts.join(" ");
+  }
+  return "Ocurrio un error al operar con Supabase.";
 }
 
 function emptyIfConfigured<T>(demo: T[]) {

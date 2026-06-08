@@ -60,6 +60,17 @@ export async function getRegistrosPicking() {
   return (data ?? []).map(normalizeSession);
 }
 
+export async function getRegistroPickingById(sessionId: string) {
+  const { data, error } = await getSupabaseClient()
+    .from("picking_sessions")
+    .select(sessionSelect)
+    .eq("id", sessionId)
+    .single();
+
+  if (error) throw error;
+  return normalizeSession(data);
+}
+
 export async function createRegistroPicking(input: Omit<PickingSession, "id" | "created_at" | "updated_at" | "employee" | "court" | "pauses" | "quality_control">) {
   const { data, error } = await getSupabaseClient()
     .from("picking_sessions")
@@ -95,15 +106,15 @@ export async function updateRegistroPicking(sessionId: string, patch: Partial<Pi
   void pauses;
   void quality_control;
 
-  const { data, error } = await getSupabaseClient()
+  const { error } = await getSupabaseClient()
     .from("picking_sessions")
     .update(payload)
     .eq("id", sessionId)
-    .select(sessionSelect)
+    .select("id")
     .single();
 
   if (error) throw error;
-  return normalizeSession(data);
+  return getRegistroPickingById(sessionId);
 }
 
 export async function deleteRegistroPicking(sessionId: string) {

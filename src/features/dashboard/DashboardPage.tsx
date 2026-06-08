@@ -1,3 +1,4 @@
+import { useMemo, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -25,6 +26,7 @@ import { useOperationsData } from "../../hooks/useOperationsData";
 import { formatDuration, formatNumber, formatPercent } from "../../lib/formatters/number";
 import { formatPickingStatus } from "../../lib/formatters/status";
 import { productivityLight, qualityLight } from "../../lib/calculations/picking";
+import type { DashboardFilters, Employee, PauseReason, PickingSession, WorkCourt } from "../../types/domain";
 
 const chartColors = ["#12b981", "#38bdf8", "#f7c948", "#ef4444", "#a78bfa", "#fb7185"];
 
@@ -51,45 +53,72 @@ const chartTooltipProps = {
 
 export function DashboardPage() {
   const { sessions, employees, courts, pauseReasons, loading, error, isUsingDemoData } = useOperationsData();
-  const controlled = sessions.filter((session) => session.status === "controlled");
-  const totalPackages = sessions.reduce((sum, item) => sum + item.planned_packages, 0);
-  const totalErrors = sessions.reduce(
+  const [filters, setFilters] = useState<DashboardFilters>({
+    from: "",
+    to: "",
+    shift: "",
+    employeeId: "",
+    courtId: "",
+    supervisorId: "",
+    status: "",
+    errorType: "",
+    pauseReasonId: "",
+  });
+  const filteredSessions = useMemo(() => filterSessions(sessions, filters), [sessions, filters]);
+  const controlled = filteredSessions.filter((session) => session.status === "controlled");
+  const totalPackages = filteredSessions.reduce((sum, item) => sum + item.planned_packages, 0);
+  const totalErrors = filteredSessions.reduce(
     (sum, item) => sum + (item.quality_control?.total_error_packages ?? 0),
     0,
   );
-  const avgProductivity = avg(sessions.map((item) => item.productivity_percentage));
+  const avgProductivity = avg(filteredSessions.map((item) => item.productivity_percentage));
   const avgQuality = avg(controlled.map((item) => item.quality_control?.quality_percentage ?? 0));
   const avgIndex = avg(controlled.map((item) => item.operational_index ?? 0));
-  const netSeconds = sessions.reduce((sum, item) => sum + item.net_duration_seconds, 0);
-  const pauseSeconds = sessions.reduce((sum, item) => sum + item.pause_duration_seconds, 0);
-  const pauseCount = sessions.reduce((sum, item) => sum + (item.pauses?.length ?? 0), 0);
+  const netSeconds = filteredSessions.reduce((sum, item) => sum + item.net_duration_seconds, 0);
+  const pauseSeconds = filteredSessions.reduce((sum, item) => sum + item.pause_duration_seconds, 0);
+  const pauseCount = filteredSessions.reduce((sum, item) => sum + (item.pauses?.length ?? 0), 0);
 
-  const productivityByEmployee = employees.map((employee) => ({
-    name: employee.full_name,
-    productividad: avg(
-      sessions
-        .filter((session) => session.employee_id === employee.id)
-        .map((session) => session.productivity_percentage),
-    ),
-  }));
+  const productivityByEmployee = employees
+    .map((employee) => {
+      const employeeSessions = filteredSessions.filter((session) => session.employee_id === employee.id);
+      return {
+        name: employee.full_name,
+        productividad: avg(employeeSessions.map((session) => session.productivity_percentage)),
+        sessionCount: employeeSessions.length,
+      };
+    })
+    .filter((item) => item.sessionCount > 0);
 
-  const productivityByCourt = courts.map((court) => ({
-    name: `${court.name} ${court.product_type}`,
-    real: avg(
-      sessions
-        .filter((session) => session.court_id === court.id)
-        .map((session) => session.real_packages_per_hour),
-    ),
-    esperado: court.expected_packages_per_hour,
-  }));
+  const productivityByCourt = courts
+    .map((court) => {
+      const courtSessions = filteredSessions.filter((session) => session.court_id === court.id);
+      return {
+        name: `${court.name} ${court.product_type}`,
+        real: avg(courtSessions.map((session) => session.real_packages_per_hour)),
+        esperado: court.expected_packages_per_hour,
+        sessionCount: courtSessions.length,
+      };
+    })
+    .filter((item) => item.sessionCount > 0);
 
-  const dailyEvolution = sessions.map((session) => ({
-    date: session.finished_at ? format(new Date(session.finished_at), "dd/MM") : "Curso",
-    productividad: session.productivity_percentage,
-  }));
+  const dailyEvolution = Array.from(
+    filteredSessions
+      .filter((session) => session.finished_at)
+      .reduce((days, session) => {
+        const dayKey = format(new Date(session.finished_at ?? session.started_at), "yyyy-MM-dd");
+        const current = days.get(dayKey) ?? { date: format(new Date(session.finished_at ?? session.started_at), "dd/MM"), total: 0, count: 0 };
+        current.total += session.productivity_percentage;
+        current.count += 1;
+        days.set(dayKey, current);
+        return days;
+      }, new Map<string, { date: string; total: number; count: number }>())
+      .entries(),
+  )
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([, value]) => ({ date: value.date, productividad: value.count ? value.total / value.count : 0 }));
 
   const dailyErrorsEvolution = Array.from(
-    sessions
+    filteredSessions
       .filter((session) => session.finished_at)
       .reduce((days, session) => {
         const dayKey = format(new Date(session.finished_at ?? session.started_at), "yyyy-MM-dd");
@@ -109,30 +138,40 @@ export function DashboardPage() {
     { name: "Faltante", value: sum(controlled, (item) => item.quality_control?.missing_errors ?? 0) },
   ];
 
-  const errorsByEmployee = employees.map((employee) => {
-    const employeeSessions = sessions.filter((session) => session.employee_id === employee.id);
-    const errors = sum(employeeSessions, (item) => item.quality_control?.total_error_packages ?? 0);
-    const packages = sum(employeeSessions, (item) => item.planned_packages);
-    return { name: employee.full_name, errores: errors, porcentaje: packages ? (errors / packages) * 100 : 0 };
-  });
+  const errorsByEmployee = employees
+    .map((employee) => {
+      const employeeSessions = filteredSessions.filter((session) => session.employee_id === employee.id);
+      const errors = sum(employeeSessions, (item) => item.quality_control?.total_error_packages ?? 0);
+      const packages = sum(employeeSessions, (item) => item.planned_packages);
+      return { name: employee.full_name, errores: errors, porcentaje: packages ? (errors / packages) * 100 : 0, sessionCount: employeeSessions.length };
+    })
+    .filter((item) => item.sessionCount > 0);
 
-  const pausesByReason = pauseReasons.map((reason) => ({
-    name: reason.name,
-    pausas: sessions.reduce(
-      (sumValue, session) =>
-        sumValue + (session.pauses ?? []).filter((pause) => pause.pause_reason_id === reason.id).length,
-      0,
-    ),
-  }));
+  const pausesByReason = pauseReasons
+    .map((reason) => ({
+      name: reason.name,
+      pausas: filteredSessions.reduce(
+        (sumValue, session) =>
+          sumValue + (session.pauses ?? []).filter((pause) => pause.pause_reason_id === reason.id).length,
+        0,
+      ),
+    }))
+    .filter((item) => item.pausas > 0);
 
   return (
     <div className="grid gap-6">
-      <Filters employees={employees} courts={courts} pauseReasons={pauseReasons} />
+      <Filters
+        filters={filters}
+        onChange={setFilters}
+        employees={employees}
+        courts={courts}
+        pauseReasons={pauseReasons}
+      />
       <DataState
         loading={loading}
         error={error}
-        empty={!loading && !error && !sessions.length}
-        emptyText="Supabase esta conectado, pero todavia no hay registros reales de pickeo para el dashboard."
+        empty={!loading && !error && !filteredSessions.length}
+        emptyText={sessions.length ? "No hay registros que coincidan con los filtros aplicados." : "Supabase esta conectado, pero todavia no hay registros reales de pickeo para el dashboard."}
       />
       {isUsingDemoData ? (
         <Card>
@@ -149,10 +188,10 @@ export function DashboardPage() {
         <KpiCard title="Tiempo neto" value={formatDuration(netSeconds)} icon={Timer} />
         <KpiCard title="Tiempo pausado" value={formatDuration(pauseSeconds)} icon={Pause} />
         <KpiCard title="Cantidad pausas" value={formatNumber(pauseCount)} icon={Pause} />
-        <KpiCard title="Tareas finalizadas" value={formatNumber(sessions.length)} icon={Clock} />
+        <KpiCard title="Tareas finalizadas" value={formatNumber(filteredSessions.length)} icon={Clock} />
         <KpiCard
           title="Pendientes control"
-          value={formatNumber(sessions.filter((item) => item.status === "finished_pending_control").length)}
+          value={formatNumber(filteredSessions.filter((item) => item.status === "finished_pending_control").length)}
           icon={Target}
         />
       </section>
@@ -245,7 +284,7 @@ export function DashboardPage() {
           Ordena las actividades por operario, cancha, productividad, eficacia, pausas, errores y estado.
         </p>
         <DataTable
-          data={sessions}
+          data={filteredSessions}
           columns={[
             { header: "Operario", accessorFn: (row) => row.employee?.full_name ?? row.employee_number },
             { header: "Legajo", accessorKey: "employee_number" },
@@ -297,32 +336,111 @@ function ChartCard({
 }
 
 function Filters({
+  filters,
+  onChange,
   employees,
   courts,
   pauseReasons,
 }: {
-  employees: { id: string; full_name: string }[];
-  courts: { id: string; name: string }[];
-  pauseReasons: { id: string; name: string }[];
+  filters: DashboardFilters;
+  onChange: (filters: DashboardFilters) => void;
+  employees: Employee[];
+  courts: WorkCourt[];
+  pauseReasons: PauseReason[];
 }) {
+  const shifts = Array.from(
+    new Set(employees.map((employee) => employee.shift ?? "").filter(Boolean)),
+  );
+  const supervisors = employees.filter((employee) =>
+    employees.some((item) => item.supervisor_id === employee.id),
+  );
+  const update = (patch: Partial<DashboardFilters>) => onChange({ ...filters, ...patch });
+
   return (
     <Card>
       <h2 className="text-lg font-bold">Filtros del dashboard</h2>
       <p className="mt-2 text-sm text-[color:var(--brand-muted)]">
         Ajusta el periodo y los criterios para recalcular los indicadores y visualizaciones.
       </p>
-      <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-8">
-        <Field label="Fecha desde"><Input type="date" /></Field>
-        <Field label="Fecha hasta"><Input type="date" /></Field>
-        <Field label="Turno"><Select><option>Todos</option><option>Manana</option><option>Tarde</option></Select></Field>
-        <Field label="Operario"><Select><option>Todos</option>{employees.map((e) => <option key={e.id}>{e.full_name}</option>)}</Select></Field>
-        <Field label="Cancha"><Select><option>Todas</option>{courts.map((c) => <option key={c.id}>{c.name}</option>)}</Select></Field>
-        <Field label="Supervisor"><Select><option>Todos</option></Select></Field>
-        <Field label="Estado"><Select><option>Todos</option><option>Controlada</option><option>Finalizada pendiente de control</option></Select></Field>
-        <Field label="Motivo pausa"><Select><option>Todos</option>{pauseReasons.map((p) => <option key={p.id}>{p.name}</option>)}</Select></Field>
+      <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-9">
+        <Field label="Fecha desde">
+          <Input type="date" value={filters.from} onChange={(event) => update({ from: event.target.value })} />
+        </Field>
+        <Field label="Fecha hasta">
+          <Input type="date" value={filters.to} onChange={(event) => update({ to: event.target.value })} />
+        </Field>
+        <Field label="Turno">
+          <Select value={filters.shift} onChange={(event) => update({ shift: event.target.value })}>
+            <option value="">Todos</option>
+            {shifts.map((shift) => <option key={shift} value={shift}>{shift}</option>)}
+          </Select>
+        </Field>
+        <Field label="Operario">
+          <Select value={filters.employeeId} onChange={(event) => update({ employeeId: event.target.value })}>
+            <option value="">Todos</option>
+            {employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.full_name}</option>)}
+          </Select>
+        </Field>
+        <Field label="Cancha">
+          <Select value={filters.courtId} onChange={(event) => update({ courtId: event.target.value })}>
+            <option value="">Todas</option>
+            {courts.map((court) => <option key={court.id} value={court.id}>{court.name}</option>)}
+          </Select>
+        </Field>
+        <Field label="Supervisor">
+          <Select value={filters.supervisorId} onChange={(event) => update({ supervisorId: event.target.value })}>
+            <option value="">Todos</option>
+            {supervisors.map((supervisor) => <option key={supervisor.id} value={supervisor.id}>{supervisor.full_name}</option>)}
+          </Select>
+        </Field>
+        <Field label="Estado">
+          <Select value={filters.status} onChange={(event) => update({ status: event.target.value })}>
+            <option value="">Todos</option>
+            <option value="draft">Borrador</option>
+            <option value="in_progress">En curso</option>
+            <option value="paused">Pausada</option>
+            <option value="finished_pending_control">Finalizada pendiente de control</option>
+            <option value="controlled">Controlada</option>
+            <option value="cancelled">Cancelada</option>
+          </Select>
+        </Field>
+        <Field label="Tipo error">
+          <Select value={filters.errorType} onChange={(event) => update({ errorType: event.target.value })}>
+            <option value="">Todos</option>
+            <option value="Cambio">Cambio</option>
+            <option value="Sobrante">Sobrante</option>
+            <option value="Faltante">Faltante</option>
+          </Select>
+        </Field>
+        <Field label="Motivo pausa">
+          <Select value={filters.pauseReasonId} onChange={(event) => update({ pauseReasonId: event.target.value })}>
+            <option value="">Todos</option>
+            {pauseReasons.map((reason) => <option key={reason.id} value={reason.id}>{reason.name}</option>)}
+          </Select>
+        </Field>
       </div>
     </Card>
   );
+}
+
+function filterSessions(sessions: PickingSession[], filters: DashboardFilters) {
+  return sessions.filter((session) => {
+    const activityDate = format(new Date(session.finished_at ?? session.started_at), "yyyy-MM-dd");
+    if (filters.from && activityDate < filters.from) return false;
+    if (filters.to && activityDate > filters.to) return false;
+    if (filters.shift && session.employee?.shift !== filters.shift) return false;
+    if (filters.employeeId && session.employee_id !== filters.employeeId) return false;
+    if (filters.courtId && session.court_id !== filters.courtId) return false;
+    if (filters.supervisorId && session.employee?.supervisor_id !== filters.supervisorId) return false;
+    if (filters.status && session.status !== filters.status) return false;
+    if (filters.pauseReasonId && !(session.pauses ?? []).some((pause) => pause.pause_reason_id === filters.pauseReasonId)) {
+      return false;
+    }
+    if (filters.errorType === "Cambio" && !(session.quality_control?.change_errors ?? 0)) return false;
+    if (filters.errorType === "Sobrante" && !(session.quality_control?.surplus_errors ?? 0)) return false;
+    if (filters.errorType === "Faltante" && !(session.quality_control?.missing_errors ?? 0)) return false;
+    return true;
+  });
 }
 
 function avg(values: number[]) {

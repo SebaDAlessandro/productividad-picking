@@ -31,7 +31,7 @@ export function calculatePickingMetrics(input: PickingMetricsInput): PickingMetr
   const realPackagesPerHour = hours > 0 ? input.plannedPackages / hours : 0;
   const expectedCompletionSeconds =
     input.expectedPackagesPerHour > 0
-      ? (input.plannedPackages / input.expectedPackagesPerHour) * 3600
+      ? Math.round((input.plannedPackages / input.expectedPackagesPerHour) * 3600)
       : 0;
   const productivityPercentage =
     input.expectedPackagesPerHour > 0

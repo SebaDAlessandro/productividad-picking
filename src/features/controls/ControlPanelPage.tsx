@@ -28,7 +28,16 @@ export function ControlPanelPage() {
       missingErrors: Number(missingErrors || 0),
       notes,
     });
-    setMessage(result.error ?? "Control confirmado. La actividad quedo controlada.");
+    if (result.error) {
+      setMessage(result.error);
+      return;
+    }
+    setSelected(null);
+    setChangeErrors("");
+    setSurplusErrors("");
+    setMissingErrors("");
+    setNotes("");
+    setMessage("Control confirmado. La actividad quedo controlada.");
   }
 
   return (
@@ -106,6 +115,7 @@ export function ControlPanelPage() {
               type="text"
               inputMode="numeric"
               pattern="[0-9]*"
+              autoComplete="off"
               value={changeErrors}
               onChange={(e) => setChangeErrors(e.target.value.replace(/\D/g, ""))}
               placeholder="Ingresar cantidad"
@@ -116,6 +126,7 @@ export function ControlPanelPage() {
               type="text"
               inputMode="numeric"
               pattern="[0-9]*"
+              autoComplete="off"
               value={surplusErrors}
               onChange={(e) => setSurplusErrors(e.target.value.replace(/\D/g, ""))}
               placeholder="Ingresar cantidad"
@@ -126,12 +137,13 @@ export function ControlPanelPage() {
               type="text"
               inputMode="numeric"
               pattern="[0-9]*"
+              autoComplete="off"
               value={missingErrors}
               onChange={(e) => setMissingErrors(e.target.value.replace(/\D/g, ""))}
               placeholder="Ingresar cantidad"
             />
           </Field>
-          <Field label="Observaciones"><Textarea value={notes} onChange={(e) => setNotes(e.target.value)} /></Field>
+          <Field label="Observaciones"><Textarea autoComplete="off" value={notes} onChange={(e) => setNotes(e.target.value)} /></Field>
           <Button onClick={submit} disabled={!selected}>Confirmar control</Button>
         </div>
         {selected ? <p className="mt-4 text-sm text-[color:var(--brand-muted)]">Seleccionada: {selected.employee?.full_name}</p> : null}

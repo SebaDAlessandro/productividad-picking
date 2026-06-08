@@ -7,7 +7,7 @@ import { Field, Input, Select, Textarea } from "../../components/ui/Field";
 import { TimerDisplay } from "../../components/timer/TimerDisplay";
 import { useOperationsData } from "../../hooks/useOperationsData";
 import { calculatePickingMetrics } from "../../lib/calculations/picking";
-import { fromDateTimeLocal, toDateTimeLocal } from "../../lib/formatters/date";
+import { toDateTimeLocal } from "../../lib/formatters/date";
 import { formatDuration, formatNumber, formatPercent } from "../../lib/formatters/number";
 import type { PickingSession } from "../../types/domain";
 
@@ -46,11 +46,14 @@ export function PickingPage() {
   );
 
   async function begin() {
+    const actualStart = new Date();
+    setStartedAt(toDateTimeLocal(actualStart));
+    setElapsed(0);
     const result = await startSession({
       employeeNumber,
       plannedPackages: plannedPackagesNumber,
       courtId,
-      startedAt: fromDateTimeLocal(startedAt),
+      startedAt: actualStart.toISOString(),
     });
     if (result.error) setMessage(result.error);
     if (result.data) {
