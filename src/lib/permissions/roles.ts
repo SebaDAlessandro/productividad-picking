@@ -13,8 +13,8 @@ const matrix: Record<RoleName, string[]> = {
     "team-picking:manage",
   ],
   supervisor: ["dashboard:view", "reports:view", "controls:write", "picking:view", "team-picking:manage"],
-  controlista: ["controls:write", "picking:view", "team-picking:manage"],
-  operario: ["picking:write"],
+  controlista: ["dashboard:view", "controls:write", "picking:view", "team-picking:manage"],
+  operario: ["dashboard:view", "picking:write"],
   solo_lectura: ["dashboard:view", "reports:view", "picking:view"],
 };
 
