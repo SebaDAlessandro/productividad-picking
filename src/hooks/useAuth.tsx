@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import type { Session } from "@supabase/supabase-js";
-import { isSupabaseConfigured, supabase } from "../lib/supabase/client";
+import { getSupabaseClient, isSupabaseConfigured } from "../lib/supabase/client";
 import { demoProfiles } from "../lib/supabase/demoData";
 import { SUPERADMIN_EMAIL, type UserProfile } from "../types/domain";
 
@@ -33,6 +33,10 @@ function demoProfile(role: UserProfile["role"] = "superadmin"): UserProfile {
   };
 }
 
+function fallbackProfile(email?: string | null) {
+  return demoProfile(email?.toLowerCase() === SUPERADMIN_EMAIL ? "superadmin" : "solo_lectura");
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(() => {
@@ -42,28 +46,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(isSupabaseConfigured);
 
   const loadProfile = useCallback(async (authUserId: string, email?: string | null) => {
-    const { data, error } = await supabase
+    const { data, error } = await getSupabaseClient()
       .from("users_profile")
       .select("*")
       .eq("auth_user_id", authUserId)
       .maybeSingle();
-    if (error) throw error;
-    setProfile(data ?? demoProfile(email === SUPERADMIN_EMAIL ? "superadmin" : "solo_lectura"));
+    if (error) {
+      setProfile(fallbackProfile(email));
+      return;
+    }
+    setProfile(data ?? fallbackProfile(email));
   }, []);
 
   useEffect(() => {
     if (!isSupabaseConfigured) return;
     let mounted = true;
-    supabase.auth.getUser().then(async ({ data }) => {
-      if (!mounted) return;
-      const { data: sessionData } = await supabase.auth.getSession();
-      setSession(sessionData.session);
-      if (data.user) await loadProfile(data.user.id, data.user.email);
-      setLoading(false);
-    });
+    const client = getSupabaseClient();
+    client.auth
+      .getUser()
+      .then(async ({ data }) => {
+        if (!mounted) return;
+        const { data: sessionData } = await client.auth.getSession();
+        setSession(sessionData.session);
+        if (data.user) await loadProfile(data.user.id, data.user.email);
+      })
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    } = client.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
       if (nextSession?.user) {
         void loadProfile(nextSession.user.id, nextSession.user.email);
@@ -82,20 +94,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setProfile(demoProfile(email.toLowerCase() === SUPERADMIN_EMAIL ? "superadmin" : "operario"));
       return {};
     }
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await getSupabaseClient().auth.signInWithPassword({ email, password });
+    if (!error && data.session) {
+      setSession(data.session);
+      await loadProfile(data.user.id, data.user.email);
+    }
     return { error: error?.message };
-  }, []);
+  }, [loadProfile]);
 
   const resetPassword = useCallback(async (email: string) => {
     if (!isSupabaseConfigured) return {};
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    const { error } = await getSupabaseClient().auth.resetPasswordForEmail(email, {
       redirectTo: window.location.origin,
     });
     return { error: error?.message };
   }, []);
 
   const signOut = useCallback(async () => {
-    if (isSupabaseConfigured) await supabase.auth.signOut();
+    if (isSupabaseConfigured) await getSupabaseClient().auth.signOut();
     setSession(null);
     setProfile(null);
   }, []);

@@ -14,14 +14,22 @@ export function LoginPage() {
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<RoleName>("superadmin");
   const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   if (profile) return <Navigate to="/" replace />;
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     setError("");
-    const result = await signIn(email, password);
-    if (result.error) setError(result.error);
+    setSubmitting(true);
+    try {
+      const result = await signIn(email, password);
+      if (result.error) setError(formatLoginError(result.error));
+    } catch (loginError) {
+      setError(loginError instanceof Error ? loginError.message : "No se pudo iniciar sesion.");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -57,7 +65,9 @@ export function LoginPage() {
             </div>
           </Field>
           {error ? <p className="rounded-md bg-red-500/10 p-3 text-sm text-red-300">{error}</p> : null}
-          <Button type="submit">Ingresar</Button>
+          <Button type="submit" disabled={submitting}>
+            {submitting ? "Ingresando..." : "Ingresar"}
+          </Button>
         </form>
         {!isSupabaseConfigured ? (
           <div className="mt-5 grid gap-3 border-t border-[color:var(--brand-border)] pt-5">
@@ -82,4 +92,15 @@ export function LoginPage() {
       </Card>
     </main>
   );
+}
+
+function formatLoginError(error: string) {
+  const normalized = error.toLowerCase();
+  if (normalized.includes("invalid login credentials")) {
+    return "Email o contrasena incorrectos, o el usuario todavia no fue creado en Supabase Auth.";
+  }
+  if (normalized.includes("email not confirmed")) {
+    return "El email todavia no fue confirmado en Supabase.";
+  }
+  return error;
 }
