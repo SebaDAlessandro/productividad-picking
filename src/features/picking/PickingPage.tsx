@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, Pause, Play, Square } from "lucide-react";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
+import { DataState } from "../../components/ui/DataState";
 import { Field, Input, Select, Textarea } from "../../components/ui/Field";
 import { TimerDisplay } from "../../components/timer/TimerDisplay";
 import { useOperationsData } from "../../hooks/useOperationsData";
@@ -11,7 +12,7 @@ import { formatDuration, formatNumber, formatPercent } from "../../lib/formatter
 import type { PickingSession } from "../../types/domain";
 
 export function PickingPage() {
-  const { employees, courts, pauseReasons, sessions, startSession, addPause, resumeSession, finishSession } =
+  const { employees, courts, pauseReasons, sessions, loading, error, startSession, addPause, resumeSession, finishSession } =
     useOperationsData();
   const [employeeNumber, setEmployeeNumber] = useState("");
   const [plannedPackages, setPlannedPackages] = useState("");
@@ -44,16 +45,16 @@ export function PickingPage() {
     [activeSession],
   );
 
-  function begin() {
-    const result = startSession({
+  async function begin() {
+    const result = await startSession({
       employeeNumber,
       plannedPackages: plannedPackagesNumber,
       courtId,
       startedAt: fromDateTimeLocal(startedAt),
     });
     if (result.error) setMessage(result.error);
-    if (result.session) {
-      setActiveSessionId(result.session.id);
+    if (result.data) {
+      setActiveSessionId(result.data.id);
       setCompletedSession(null);
       setElapsed(0);
       setMessage("Actividad iniciada.");
@@ -69,23 +70,28 @@ export function PickingPage() {
     setPauseNotes("");
   }
 
-  function pauseSession() {
+  async function pauseSession() {
     if (!activeSession) return;
     if (!pauseReasonId) {
       setMessage("El motivo de pausa es obligatorio.");
       return;
     }
-    addPause(activeSession.id, pauseReasonId, pauseNotes);
+    const result = await addPause(activeSession.id, pauseReasonId, pauseNotes);
+    if (result.error) {
+      setMessage(result.error);
+      return;
+    }
     setPauseReasonId("");
     setPauseNotes("");
   }
 
-  function resume() {
+  async function resume() {
     if (!activeSession) return;
-    resumeSession(activeSession.id);
+    const result = await resumeSession(activeSession.id);
+    if (result.error) setMessage(result.error);
   }
 
-  function finish() {
+  async function finish() {
     if (!activeSession) return;
     if (openPause) {
       setMessage("Debe reanudar la actividad antes de finalizar.");
@@ -120,11 +126,11 @@ export function PickingPage() {
       status: "finished_pending_control",
       updated_at: finishedAt.toISOString(),
     };
-    const result = finishSession(activeSession.id, { finishedAt, grossDurationSeconds });
+    const result = await finishSession(activeSession.id, { finishedAt, grossDurationSeconds });
     if (result.error) setMessage(result.error);
     if (!result.error) {
-      const finalSession = result.session?.gross_duration_seconds
-        ? result.session
+      const finalSession = result.data?.gross_duration_seconds
+        ? result.data
         : localCompletedSession;
       setCompletedSession(finalSession);
       setActiveSessionId(null);
@@ -136,6 +142,12 @@ export function PickingPage() {
 
   return (
     <div className="grid gap-6 2xl:grid-cols-[minmax(0,1fr)_420px]">
+      <DataState
+        loading={loading}
+        error={error}
+        empty={!loading && !error && (!employees.length || !courts.length || !pauseReasons.length)}
+        emptyText="Faltan datos maestros reales en Supabase para iniciar una actividad."
+      />
       <Card>
         <h2 className="text-xl font-bold">Inicio de actividad de pickeo</h2>
         <p className="mt-2 text-sm text-[color:var(--brand-muted)]">

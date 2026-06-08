@@ -1,18 +1,21 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ClipboardCheck, Plus, Save, Trash2 } from "lucide-react";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
+import { DataState } from "../../components/ui/DataState";
 import { Field, Input, Select, Textarea } from "../../components/ui/Field";
 import { DataTable } from "../../components/tables/DataTable";
 import { Badge } from "../../components/ui/Badge";
 import { useOperationsData } from "../../hooks/useOperationsData";
+import { isSupabaseConfigured } from "../../lib/supabase/client";
 import { fromDateTimeLocal, toDateTimeLocal } from "../../lib/formatters/date";
 import { formatPercent } from "../../lib/formatters/number";
 import { formatPickingStatus, pickingStatusOptions } from "../../lib/formatters/status";
+import { getRoles, getSettings, getUsersProfile, updateUserProfile, type RoleRecord, type SettingRecord } from "../../services/adminService";
 import { SUPERADMIN_EMAIL, type Employee, type PauseReason, type PickingSession, type RoleName, type WorkCourt } from "../../types/domain";
 
 type Tab = "employees" | "courts" | "pauseReasons" | "sessions" | "pauses" | "controls" | "users" | "roles" | "settings";
-type UserAdmin = { id: string; email: string; full_name: string; role: RoleName; is_active: boolean };
+type UserAdmin = { id: string; auth_user_id?: string; email: string; full_name: string | null; role: RoleName; is_active: boolean; employee_id?: string | null; created_at?: string; updated_at?: string };
 type RoleAdmin = { id: string; name: RoleName; description: string; is_system_role: boolean };
 type SettingAdmin = { id: string; key: string; value: string; description: string };
 
@@ -32,6 +35,7 @@ const roleOptions: RoleName[] = ["superadmin", "admin", "supervisor", "controlis
 
 export function AdminTablesPage() {
   const [tab, setTab] = useState<Tab>("employees");
+  const { loading, error } = useOperationsData();
 
   return (
     <div className="grid gap-6">
@@ -48,6 +52,7 @@ export function AdminTablesPage() {
           ))}
         </div>
       </Card>
+      <DataState loading={loading} error={error} />
       {tab === "employees" ? <EmployeesAdmin /> : null}
       {tab === "courts" ? <CourtsAdmin /> : null}
       {tab === "pauseReasons" ? <PauseReasonsAdmin /> : null}
@@ -64,9 +69,9 @@ export function AdminTablesPage() {
 function EmployeesAdmin() {
   const { employees, upsertEmployee, deleteEmployee } = useOperationsData();
   const [form, setForm] = useState<Partial<Employee>>({});
-  const save = () => {
+  const save = async () => {
     const now = new Date().toISOString();
-    upsertEmployee({
+    const result = await upsertEmployee({
       id: form.id ?? crypto.randomUUID(),
       employee_number: form.employee_number ?? "",
       first_name: form.first_name ?? "",
@@ -79,6 +84,10 @@ function EmployeesAdmin() {
       created_at: form.created_at ?? now,
       updated_at: now,
     });
+    if (result.error) {
+      window.alert(result.error);
+      return;
+    }
     setForm({});
   };
   return (
@@ -95,7 +104,10 @@ function EmployeesAdmin() {
         { header: "Nombre", accessorKey: "full_name" },
         { header: "Area", accessorKey: "area" },
         { header: "Estado", cell: ({ row }) => <Badge color={row.original.is_active ? "green" : "red"}>{row.original.is_active ? "Activo" : "Inactivo"}</Badge> },
-        { header: "Acciones", cell: ({ row }) => <RowActions onEdit={() => setForm(row.original)} onDelete={() => deleteEmployee(row.original.id)} /> },
+        { header: "Acciones", cell: ({ row }) => <RowActions onEdit={() => setForm(row.original)} onDelete={async () => {
+          const result = await deleteEmployee(row.original.id);
+          if (result.error) window.alert(result.error);
+        }} /> },
       ]} />
     </AdminCrud>
   );
@@ -104,9 +116,9 @@ function EmployeesAdmin() {
 function CourtsAdmin() {
   const { courts, upsertCourt, deleteCourt } = useOperationsData();
   const [form, setForm] = useState<Partial<WorkCourt>>({});
-  const save = () => {
+  const save = async () => {
     const now = new Date().toISOString();
-    upsertCourt({
+    const result = await upsertCourt({
       id: form.id ?? crypto.randomUUID(),
       code: form.code ?? "",
       name: form.name ?? "",
@@ -116,6 +128,10 @@ function CourtsAdmin() {
       created_at: form.created_at ?? now,
       updated_at: now,
     });
+    if (result.error) {
+      window.alert(result.error);
+      return;
+    }
     setForm({});
   };
   return (
@@ -132,7 +148,10 @@ function CourtsAdmin() {
         { header: "Cancha", accessorKey: "name" },
         { header: "Producto", accessorKey: "product_type" },
         { header: "Estandar", accessorKey: "expected_packages_per_hour" },
-        { header: "Acciones", cell: ({ row }) => <RowActions onEdit={() => setForm(row.original)} onDelete={() => deleteCourt(row.original.id)} /> },
+        { header: "Acciones", cell: ({ row }) => <RowActions onEdit={() => setForm(row.original)} onDelete={async () => {
+          const result = await deleteCourt(row.original.id);
+          if (result.error) window.alert(result.error);
+        }} /> },
       ]} />
     </AdminCrud>
   );
@@ -141,9 +160,9 @@ function CourtsAdmin() {
 function PauseReasonsAdmin() {
   const { pauseReasons, upsertPauseReason, deletePauseReason } = useOperationsData();
   const [form, setForm] = useState<Partial<PauseReason>>({});
-  const save = () => {
+  const save = async () => {
     const now = new Date().toISOString();
-    upsertPauseReason({
+    const result = await upsertPauseReason({
       id: form.id ?? crypto.randomUUID(),
       name: form.name ?? "",
       description: form.description ?? null,
@@ -152,6 +171,10 @@ function PauseReasonsAdmin() {
       created_at: form.created_at ?? now,
       updated_at: now,
     });
+    if (result.error) {
+      window.alert(result.error);
+      return;
+    }
     setForm({});
   };
   return (
@@ -166,7 +189,10 @@ function PauseReasonsAdmin() {
         { header: "Nombre", accessorKey: "name" },
         { header: "Descripcion", accessorKey: "description" },
         { header: "Observacion", cell: ({ row }) => row.original.requires_observation ? "Si" : "No" },
-        { header: "Acciones", cell: ({ row }) => <RowActions onEdit={() => setForm(row.original)} onDelete={() => deletePauseReason(row.original.id)} /> },
+        { header: "Acciones", cell: ({ row }) => <RowActions onEdit={() => setForm(row.original)} onDelete={async () => {
+          const result = await deletePauseReason(row.original.id);
+          if (result.error) window.alert(result.error);
+        }} /> },
       ]} />
     </AdminCrud>
   );
@@ -183,12 +209,12 @@ function SessionsAdmin() {
     reason: "",
   });
   const [controlMessage, setControlMessage] = useState("");
-  const save = () => {
+  const save = async () => {
     const now = new Date().toISOString();
     const employee = employees.find((item) => item.id === form.employee_id) ?? employees[0];
     const court = courts.find((item) => item.id === form.court_id) ?? courts[0];
     if (!employee || !court) return;
-    upsertSession({
+    const result = await upsertSession({
       id: form.id ?? crypto.randomUUID(),
       employee_id: employee.id,
       employee_number: employee.employee_number,
@@ -214,15 +240,19 @@ function SessionsAdmin() {
       pauses: form.pauses ?? [],
       quality_control: form.quality_control ?? null,
     });
+    if (result.error) {
+      window.alert(result.error);
+      return;
+    }
     setForm({});
   };
-  const loadErrors = () => {
+  const loadErrors = async () => {
     setControlMessage("");
     if (!selectedControlSessionId) {
       setControlMessage("Debe seleccionar una sesion para cargar errores.");
       return;
     }
-    const result = controlSession(selectedControlSessionId, {
+    const result = await controlSession(selectedControlSessionId, {
       changeErrors: Number(errorForm.changeErrors || 0),
       surplusErrors: Number(errorForm.surplusErrors || 0),
       missingErrors: Number(errorForm.missingErrors || 0),
@@ -325,7 +355,10 @@ function SessionsAdmin() {
                 <ClipboardCheck size={16} />
                 Errores
               </Button>
-              <Button variant="danger" onClick={() => deleteSession(row.original.id)}><Trash2 size={16} />Borrar</Button>
+              <Button variant="danger" onClick={async () => {
+                const result = await deleteSession(row.original.id);
+                if (result.error) window.alert(result.error);
+              }}><Trash2 size={16} />Borrar</Button>
             </div>
           ),
         },
@@ -371,19 +404,72 @@ function UsersAdmin() {
     { id: "superadmin", email: SUPERADMIN_EMAIL, full_name: "Superadministrador", role: "superadmin", is_active: true },
   ]);
   const [form, setForm] = useState<Partial<UserAdmin>>({});
-  const save = () => {
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    if (!isSupabaseConfigured) return;
+    getUsersProfile()
+      .then((profiles) => setUsers(profiles.map((profile) => ({
+        id: profile.id,
+        auth_user_id: profile.auth_user_id,
+        email: profile.email,
+        full_name: profile.full_name,
+        role: profile.role,
+        employee_id: profile.employee_id,
+        is_active: profile.is_active,
+        created_at: profile.created_at,
+        updated_at: profile.updated_at,
+      }))))
+      .catch((error: unknown) => setMessage(error instanceof Error ? error.message : "No se pudieron cargar usuarios."));
+  }, []);
+
+  const save = async () => {
+    setMessage("");
+    if (isSupabaseConfigured && !form.id) {
+      setMessage("Para crear usuarios nuevos primero hay que crearlos en Supabase Auth; esta pantalla edita perfiles existentes.");
+      return;
+    }
     const next: UserAdmin = {
       id: form.id ?? crypto.randomUUID(),
+      auth_user_id: form.auth_user_id,
       email: form.email ?? "",
       full_name: form.full_name ?? "",
       role: form.email?.toLowerCase() === SUPERADMIN_EMAIL ? "superadmin" : form.role ?? "solo_lectura",
       is_active: form.email?.toLowerCase() === SUPERADMIN_EMAIL ? true : form.is_active ?? true,
+      employee_id: form.employee_id ?? null,
+      created_at: form.created_at ?? new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     };
+    if (isSupabaseConfigured) {
+      try {
+        const saved = await updateUserProfile({
+          id: next.id,
+          auth_user_id: next.auth_user_id ?? "",
+          email: next.email,
+          full_name: next.full_name,
+          role: next.role,
+          employee_id: next.employee_id ?? null,
+          is_active: next.is_active,
+          created_at: next.created_at ?? new Date().toISOString(),
+          updated_at: next.updated_at ?? new Date().toISOString(),
+        });
+        setUsers((current) => current.map((item) => item.id === saved.id ? { ...saved, full_name: saved.full_name } : item));
+        setForm({});
+        return;
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : "No se pudo guardar el usuario.");
+        return;
+      }
+    }
     setUsers((current) => current.some((item) => item.id === next.id) ? current.map((item) => item.id === next.id ? next : item) : [next, ...current]);
     setForm({});
   };
   const remove = (user: UserAdmin) => {
     if (user.email.toLowerCase() === SUPERADMIN_EMAIL) return;
+    if (isSupabaseConfigured) {
+      setMessage("La eliminacion/desactivacion de usuarios reales se hara en un paso controlado para no afectar accesos.");
+      return;
+    }
     setUsers((current) => current.filter((item) => item.id !== user.id));
   };
   return (
@@ -394,6 +480,7 @@ function UsersAdmin() {
         <Field label="Rol"><Select value={form.role ?? "solo_lectura"} onChange={(e) => setForm({ ...form, role: e.target.value as RoleName })}>{roleOptions.map((role) => <option key={role} value={role}>{role}</option>)}</Select></Field>
         <Field label="Activo"><Select value={String(form.is_active ?? true)} onChange={(e) => setForm({ ...form, is_active: e.target.value === "true" })}><option value="true">Si</option><option value="false">No</option></Select></Field>
       </div>
+      {message ? <p className="rounded-md bg-sky-500/10 p-3 text-sm text-sky-300">{message}</p> : null}
       <DataTable data={users} columns={[
         { header: "Email", accessorKey: "email" },
         { header: "Nombre", accessorKey: "full_name" },
@@ -408,7 +495,25 @@ function UsersAdmin() {
 function RolesAdmin() {
   const [roles, setRoles] = useState<RoleAdmin[]>(roleOptions.map((role) => ({ id: role, name: role, description: `Rol ${role}`, is_system_role: true })));
   const [form, setForm] = useState<Partial<RoleAdmin>>({});
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    if (!isSupabaseConfigured) return;
+    getRoles()
+      .then((records: RoleRecord[]) => setRoles(records.map((role) => ({
+        id: role.id,
+        name: role.name,
+        description: role.description ?? "",
+        is_system_role: role.is_system_role,
+      }))))
+      .catch((error: unknown) => setMessage(error instanceof Error ? error.message : "No se pudieron cargar roles."));
+  }, []);
+
   const save = () => {
+    if (isSupabaseConfigured) {
+      setMessage("Los roles de sistema ya se leen desde Supabase. La edicion de permisos la dejamos para un paso especifico.");
+      return;
+    }
     const next: RoleAdmin = { id: form.id ?? crypto.randomUUID(), name: form.name ?? "solo_lectura", description: form.description ?? "", is_system_role: form.is_system_role ?? false };
     setRoles((current) => current.some((item) => item.id === next.id) ? current.map((item) => item.id === next.id ? next : item) : [next, ...current]);
     setForm({});
@@ -420,11 +525,18 @@ function RolesAdmin() {
         <Field label="Descripcion"><Input value={form.description ?? ""} onChange={(e) => setForm({ ...form, description: e.target.value })} /></Field>
         <Field label="Rol sistema"><Select value={String(form.is_system_role ?? false)} onChange={(e) => setForm({ ...form, is_system_role: e.target.value === "true" })}><option value="false">No</option><option value="true">Si</option></Select></Field>
       </div>
+      {message ? <p className="rounded-md bg-sky-500/10 p-3 text-sm text-sky-300">{message}</p> : null}
       <DataTable data={roles} columns={[
         { header: "Rol", accessorKey: "name" },
         { header: "Descripcion", accessorKey: "description" },
         { header: "Sistema", cell: ({ row }) => row.original.is_system_role ? "Si" : "No" },
-        { header: "Acciones", cell: ({ row }) => <RowActions onEdit={() => setForm(row.original)} onDelete={() => setRoles((current) => current.filter((item) => item.id !== row.original.id))} disabledDelete={row.original.is_system_role} /> },
+        { header: "Acciones", cell: ({ row }) => <RowActions onEdit={() => setForm(row.original)} onDelete={() => {
+          if (isSupabaseConfigured) {
+            setMessage("Los roles reales no se eliminan desde esta pantalla.");
+            return;
+          }
+          setRoles((current) => current.filter((item) => item.id !== row.original.id));
+        }} disabledDelete={row.original.is_system_role} /> },
       ]} />
     </AdminCrud>
   );
@@ -435,7 +547,25 @@ function SettingsAdmin() {
     { id: "protected", key: "protected_superadmin_email", value: SUPERADMIN_EMAIL, description: "Email protegido como superadministrador permanente." },
   ]);
   const [form, setForm] = useState<Partial<SettingAdmin>>({});
+  const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    if (!isSupabaseConfigured) return;
+    getSettings()
+      .then((records: SettingRecord[]) => setSettings(records.map((setting) => ({
+        id: setting.id,
+        key: setting.key,
+        value: JSON.stringify(setting.value),
+        description: setting.description ?? "",
+      }))))
+      .catch((error: unknown) => setMessage(error instanceof Error ? error.message : "No se pudo cargar configuracion."));
+  }, []);
+
   const save = () => {
+    if (isSupabaseConfigured) {
+      setMessage("La configuracion real se esta leyendo desde Supabase. La edicion queda pendiente para un paso controlado.");
+      return;
+    }
     const next: SettingAdmin = { id: form.id ?? crypto.randomUUID(), key: form.key ?? "", value: form.value ?? "", description: form.description ?? "" };
     setSettings((current) => current.some((item) => item.id === next.id) ? current.map((item) => item.id === next.id ? next : item) : [next, ...current]);
     setForm({});
@@ -447,11 +577,18 @@ function SettingsAdmin() {
         <Field label="Valor"><Input value={form.value ?? ""} onChange={(e) => setForm({ ...form, value: e.target.value })} /></Field>
         <Field label="Descripcion"><Textarea value={form.description ?? ""} onChange={(e) => setForm({ ...form, description: e.target.value })} /></Field>
       </div>
+      {message ? <p className="rounded-md bg-sky-500/10 p-3 text-sm text-sky-300">{message}</p> : null}
       <DataTable data={settings} columns={[
         { header: "Clave", accessorKey: "key" },
         { header: "Valor", accessorKey: "value" },
         { header: "Descripcion", accessorKey: "description" },
-        { header: "Acciones", cell: ({ row }) => <RowActions onEdit={() => setForm(row.original)} onDelete={() => setSettings((current) => current.filter((item) => item.id !== row.original.id))} disabledDelete={row.original.key === "protected_superadmin_email"} /> },
+        { header: "Acciones", cell: ({ row }) => <RowActions onEdit={() => setForm(row.original)} onDelete={() => {
+          if (isSupabaseConfigured) {
+            setMessage("La configuracion real no se elimina desde esta pantalla.");
+            return;
+          }
+          setSettings((current) => current.filter((item) => item.id !== row.original.id));
+        }} disabledDelete={row.original.key === "protected_superadmin_email"} /> },
       ]} />
     </AdminCrud>
   );

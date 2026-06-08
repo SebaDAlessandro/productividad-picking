@@ -1,9 +1,10 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { Pause, Play, RotateCcw, Square, Trash2, Users } from "lucide-react";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
+import { DataState } from "../../components/ui/DataState";
 import { Field, Input, Select } from "../../components/ui/Field";
 import { DataTable } from "../../components/tables/DataTable";
 import { useOperationsData } from "../../hooks/useOperationsData";
@@ -27,6 +28,8 @@ export function TeamPickingPage() {
     courts,
     pauseReasons,
     sessions,
+    loading,
+    error,
     startSession,
     addPause,
     resumeSession,
@@ -41,6 +44,12 @@ export function TeamPickingPage() {
   });
   const [pauseInputs, setPauseInputs] = useState<Record<string, { reasonId: string; notes: string }>>({});
   const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    if (!draft.courtId && courts[0]?.id) {
+      setDraft((current) => ({ ...current, courtId: courts[0].id }));
+    }
+  }, [courts, draft.courtId]);
 
   const todayKey = format(new Date(), "yyyy-MM-dd");
   const todaySessions = useMemo(
@@ -59,7 +68,7 @@ export function TeamPickingPage() {
       .map((session) => session.employee_number),
   );
 
-  function startForEmployee() {
+  async function startForEmployee() {
     setMessage("");
     if (!draft.employeeNumber) {
       setMessage("Debe seleccionar un operario.");
@@ -69,7 +78,7 @@ export function TeamPickingPage() {
       setMessage("Ese operario ya tiene una actividad en curso o pausada.");
       return;
     }
-    const result = startSession({
+    const result = await startSession({
       employeeNumber: draft.employeeNumber,
       plannedPackages: Number(draft.plannedPackages),
       courtId: draft.courtId,
@@ -88,7 +97,7 @@ export function TeamPickingPage() {
     setMessage("Actividad iniciada por supervisor.");
   }
 
-  function pause(session: PickingSession) {
+  async function pause(session: PickingSession) {
     const input = pauseInputs[session.id];
     const fallbackReason =
       pauseReasons.find((reason) => reason.name.toLowerCase() === "otro") ?? pauseReasons[0];
@@ -97,21 +106,29 @@ export function TeamPickingPage() {
       setMessage("No hay motivos de pausa configurados.");
       return;
     }
-    addPause(
+    const result = await addPause(
       session.id,
       reasonId,
       input?.notes || (!input?.reasonId ? "Pausa registrada desde pickeo supervisado." : undefined),
     );
+    if (result.error) {
+      setMessage(result.error);
+      return;
+    }
     setMessage(`Actividad pausada: ${session.employee?.full_name ?? session.employee_number}.`);
   }
 
-  function resume(session: PickingSession) {
-    resumeSession(session.id);
+  async function resume(session: PickingSession) {
+    const result = await resumeSession(session.id);
+    if (result.error) {
+      setMessage(result.error);
+      return;
+    }
     setMessage(`Actividad reanudada: ${session.employee?.full_name ?? session.employee_number}.`);
   }
 
-  function finish(session: PickingSession) {
-    const result = finishSession(session.id);
+  async function finish(session: PickingSession) {
+    const result = await finishSession(session.id);
     if (result.error) {
       setMessage(result.error);
       return;
@@ -119,11 +136,15 @@ export function TeamPickingPage() {
     setMessage(`Actividad finalizada pendiente de control: ${session.employee?.full_name ?? session.employee_number}.`);
   }
 
-  function remove(session: PickingSession) {
+  async function remove(session: PickingSession) {
     const employeeName = session.employee?.full_name ?? session.employee_number;
     const confirmed = window.confirm(`Eliminar la actividad de ${employeeName}? Esta accion quedara fuera de la tabla del dia.`);
     if (!confirmed) return;
-    deleteSession(session.id);
+    const result = await deleteSession(session.id);
+    if (result.error) {
+      setMessage(result.error);
+      return;
+    }
     setMessage(`Actividad eliminada: ${employeeName}.`);
   }
 
@@ -140,6 +161,12 @@ export function TeamPickingPage() {
 
   return (
     <div className="grid gap-6">
+      <DataState
+        loading={loading}
+        error={error}
+        empty={!loading && !error && (!employees.length || !courts.length || !pauseReasons.length)}
+        emptyText="Faltan datos maestros reales en Supabase para usar pickeo supervisado."
+      />
       <Card>
         <h2 className="flex items-center gap-2 text-xl font-bold">
           <Users className="text-emerald-400" />

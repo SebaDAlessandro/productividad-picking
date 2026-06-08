@@ -16,6 +16,7 @@ import {
 import { Activity, AlertTriangle, Clock, Package, Pause, Target, Timer, TrendingUp } from "lucide-react";
 import { format } from "date-fns";
 import { Card } from "../../components/ui/Card";
+import { DataState } from "../../components/ui/DataState";
 import { Field, Input, Select } from "../../components/ui/Field";
 import { KpiCard } from "../../components/kpi/KpiCard";
 import { DataTable } from "../../components/tables/DataTable";
@@ -49,7 +50,7 @@ const chartTooltipProps = {
 };
 
 export function DashboardPage() {
-  const { sessions, employees, courts, pauseReasons } = useOperationsData();
+  const { sessions, employees, courts, pauseReasons, loading, error, isUsingDemoData } = useOperationsData();
   const controlled = sessions.filter((session) => session.status === "controlled");
   const totalPackages = sessions.reduce((sum, item) => sum + item.planned_packages, 0);
   const totalErrors = sessions.reduce(
@@ -127,6 +128,17 @@ export function DashboardPage() {
   return (
     <div className="grid gap-6">
       <Filters employees={employees} courts={courts} pauseReasons={pauseReasons} />
+      <DataState
+        loading={loading}
+        error={error}
+        empty={!loading && !error && !sessions.length}
+        emptyText="Supabase esta conectado, pero todavia no hay registros reales de pickeo para el dashboard."
+      />
+      {isUsingDemoData ? (
+        <Card>
+          <p className="text-sm text-amber-200">Modo demo local: estos datos no provienen de Supabase.</p>
+        </Card>
+      ) : null}
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <KpiCard title="Productividad promedio" value={formatPercent(avgProductivity)} icon={TrendingUp} />
         <KpiCard title="Eficacia promedio" value={formatPercent(avgQuality)} icon={Target} />

@@ -1,6 +1,7 @@
 import { Download } from "lucide-react";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
+import { DataState } from "../../components/ui/DataState";
 import { Field, Input, Select } from "../../components/ui/Field";
 import { DataTable } from "../../components/tables/DataTable";
 import { Badge } from "../../components/ui/Badge";
@@ -9,7 +10,7 @@ import { formatDuration, formatPercent } from "../../lib/formatters/number";
 import { formatPickingStatus } from "../../lib/formatters/status";
 
 export function ReportsPage() {
-  const { sessions, employees, courts, pauseReasons } = useOperationsData();
+  const { sessions, employees, courts, pauseReasons, loading, error } = useOperationsData();
 
   function exportCsv() {
     const rows = [
@@ -35,6 +36,12 @@ export function ReportsPage() {
 
   return (
     <div className="grid gap-6">
+      <DataState
+        loading={loading}
+        error={error}
+        empty={!loading && !error && !sessions.length}
+        emptyText="No hay registros reales para generar reportes."
+      />
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>

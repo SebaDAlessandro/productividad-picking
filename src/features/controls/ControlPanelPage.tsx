@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Check, ClipboardCheck } from "lucide-react";
 import { Button } from "../../components/ui/Button";
 import { Card } from "../../components/ui/Card";
+import { DataState } from "../../components/ui/DataState";
 import { Field, Input, Textarea } from "../../components/ui/Field";
 import { DataTable } from "../../components/tables/DataTable";
 import { Badge } from "../../components/ui/Badge";
@@ -10,7 +11,7 @@ import { formatPickingStatus } from "../../lib/formatters/status";
 import type { PickingSession } from "../../types/domain";
 
 export function ControlPanelPage() {
-  const { sessions, controlSession } = useOperationsData();
+  const { sessions, loading, error, controlSession } = useOperationsData();
   const pending = sessions.filter((session) => session.status === "finished_pending_control");
   const [selected, setSelected] = useState<PickingSession | null>(null);
   const [changeErrors, setChangeErrors] = useState("");
@@ -19,9 +20,9 @@ export function ControlPanelPage() {
   const [notes, setNotes] = useState("");
   const [message, setMessage] = useState("");
 
-  function submit() {
+  async function submit() {
     if (!selected) return;
-    const result = controlSession(selected.id, {
+    const result = await controlSession(selected.id, {
       changeErrors: Number(changeErrors || 0),
       surplusErrors: Number(surplusErrors || 0),
       missingErrors: Number(missingErrors || 0),
@@ -32,6 +33,12 @@ export function ControlPanelPage() {
 
   return (
     <div className="grid gap-6 xl:grid-cols-[1fr_420px]">
+      <DataState
+        loading={loading}
+        error={error}
+        empty={!loading && !error && !pending.length}
+        emptyText="No hay actividades reales pendientes de control."
+      />
       <Card>
         <h2 className="text-xl font-bold">Actividades pendientes de control</h2>
         <p className="mt-2 text-sm text-[color:var(--brand-muted)]">
