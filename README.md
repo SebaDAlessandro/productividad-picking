@@ -61,7 +61,7 @@ Las tablas tienen RLS habilitado. Las funciones privilegiadas viven en `app_priv
 
 ## Superadministrador
 
-El usuario protegido es `sebadalessandro@gmail.com`.
+El usuario protegido es `*********@gmail.com`.
 
 Reglas aplicadas:
 
