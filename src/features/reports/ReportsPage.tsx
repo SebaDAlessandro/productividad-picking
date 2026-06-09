@@ -14,10 +14,11 @@ export function ReportsPage() {
 
   function exportCsv() {
     const rows = [
-      ["operario", "legajo", "cancha", "bultos", "productividad", "eficacia", "estado"],
+      ["operario", "legajo", "nro_planilla", "cancha", "bultos", "productividad", "eficacia", "estado"],
       ...sessions.map((session) => [
         session.employee?.full_name ?? "",
         session.employee_number,
+        session.sheet_number ?? "",
         session.court?.name ?? "",
         String(session.planned_packages),
         String(session.productivity_percentage),
@@ -75,6 +76,7 @@ export function ReportsPage() {
           data={sessions}
           columns={[
             { header: "Operario", accessorFn: (row) => row.employee?.full_name ?? row.employee_number },
+            { header: "Nro Planilla", accessorKey: "sheet_number" },
             { header: "Cancha", accessorFn: (row) => row.court?.name ?? "" },
             { header: "Bultos", accessorKey: "planned_packages" },
             { header: "Productividad", cell: ({ row }) => formatPercent(row.original.productivity_percentage) },

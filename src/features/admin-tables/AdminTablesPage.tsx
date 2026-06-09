@@ -6,8 +6,10 @@ import { DataState } from "../../components/ui/DataState";
 import { Field, Input, Select, Textarea } from "../../components/ui/Field";
 import { DataTable } from "../../components/tables/DataTable";
 import { Badge } from "../../components/ui/Badge";
+import { useAuth } from "../../hooks/useAuth";
 import { useOperationsData } from "../../hooks/useOperationsData";
 import { isSupabaseConfigured } from "../../lib/supabase/client";
+import { can } from "../../lib/permissions/roles";
 import { fromDateTimeLocal, toDateTimeLocal } from "../../lib/formatters/date";
 import { formatPercent } from "../../lib/formatters/number";
 import { formatPickingStatus, pickingStatusOptions } from "../../lib/formatters/status";
@@ -19,16 +21,16 @@ type UserAdmin = { id: string; auth_user_id?: string; email: string; full_name: 
 type RoleAdmin = { id: string; name: RoleName; description: string; is_system_role: boolean };
 type SettingAdmin = { id: string; key: string; value: string; description: string };
 
-const tabs: { id: Tab; label: string }[] = [
-  { id: "employees", label: "Operarios" },
-  { id: "courts", label: "Canchas" },
-  { id: "pauseReasons", label: "Motivos de pausa" },
-  { id: "sessions", label: "Sesiones" },
-  { id: "pauses", label: "Pausas" },
-  { id: "controls", label: "Controles" },
-  { id: "users", label: "Usuarios" },
-  { id: "roles", label: "Roles" },
-  { id: "settings", label: "Configuracion" },
+const tabs: { id: Tab; label: string; permission: string }[] = [
+  { id: "employees", label: "Operarios", permission: "admin:operational" },
+  { id: "courts", label: "Canchas", permission: "admin:operational" },
+  { id: "pauseReasons", label: "Motivos de pausa", permission: "admin:operational" },
+  { id: "sessions", label: "Sesiones", permission: "admin:operational" },
+  { id: "pauses", label: "Pausas", permission: "admin:operational" },
+  { id: "controls", label: "Controles", permission: "admin:operational" },
+  { id: "users", label: "Usuarios", permission: "users:manage" },
+  { id: "roles", label: "Roles", permission: "users:manage" },
+  { id: "settings", label: "Configuracion", permission: "admin:manage" },
 ];
 
 const roleOptions: RoleName[] = ["superadmin", "admin", "supervisor", "controlista", "operario", "solo_lectura"];
@@ -36,6 +38,14 @@ const roleOptions: RoleName[] = ["superadmin", "admin", "supervisor", "controlis
 export function AdminTablesPage() {
   const [tab, setTab] = useState<Tab>("employees");
   const { loading, error } = useOperationsData();
+  const { profile } = useAuth();
+  const visibleTabs = tabs.filter((item) => can(profile, item.permission));
+
+  useEffect(() => {
+    if (visibleTabs.length && !visibleTabs.some((item) => item.id === tab)) {
+      setTab(visibleTabs[0].id);
+    }
+  }, [tab, visibleTabs]);
 
   return (
     <div className="grid gap-6">
@@ -45,7 +55,7 @@ export function AdminTablesPage() {
           Alta, edicion, eliminacion segura y auditoria para tablas maestras, usuarios y registros operativos.
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
-          {tabs.map((item) => (
+          {visibleTabs.map((item) => (
             <Button key={item.id} variant={tab === item.id ? "primary" : "secondary"} onClick={() => setTab(item.id)}>
               {item.label}
             </Button>
@@ -59,9 +69,9 @@ export function AdminTablesPage() {
       {tab === "sessions" ? <SessionsAdmin /> : null}
       {tab === "pauses" ? <PausesAdmin /> : null}
       {tab === "controls" ? <ControlsAdmin /> : null}
-      {tab === "users" ? <UsersAdmin /> : null}
-      {tab === "roles" ? <RolesAdmin /> : null}
-      {tab === "settings" ? <SettingsAdmin /> : null}
+      {tab === "users" && can(profile, "users:manage") ? <UsersAdmin /> : null}
+      {tab === "roles" && can(profile, "users:manage") ? <RolesAdmin /> : null}
+      {tab === "settings" && can(profile, "admin:manage") ? <SettingsAdmin /> : null}
     </div>
   );
 }
@@ -218,6 +228,7 @@ function SessionsAdmin() {
       id: form.id ?? crypto.randomUUID(),
       employee_id: employee.id,
       employee_number: employee.employee_number,
+      sheet_number: form.sheet_number?.trim() || null,
       court_id: court.id,
       planned_packages: Number(form.planned_packages ?? 1),
       expected_packages_per_hour: court.expected_packages_per_hour,
@@ -267,8 +278,9 @@ function SessionsAdmin() {
   };
   return (
     <AdminCrud title="Sesiones de pickeo" description="Permite crear, corregir estado, modificar bultos o eliminar sesiones operativas." onNew={() => setForm({})} onSave={save}>
-      <div className="grid gap-4 md:grid-cols-6">
+      <div className="grid gap-4 md:grid-cols-7">
         <Field label="Operario"><Select value={form.employee_id ?? ""} onChange={(e) => setForm({ ...form, employee_id: e.target.value })}><option value="">Seleccionar</option>{employees.map((item) => <option key={item.id} value={item.id}>{item.full_name}</option>)}</Select></Field>
+        <Field label="Nro de Planilla"><Input value={form.sheet_number ?? ""} onChange={(e) => setForm({ ...form, sheet_number: e.target.value })} placeholder="Planilla Chess" /></Field>
         <Field label="Cancha"><Select value={form.court_id ?? ""} onChange={(e) => setForm({ ...form, court_id: e.target.value })}><option value="">Seleccionar</option>{courts.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select></Field>
         <Field label="Bultos"><Input type="number" value={form.planned_packages ?? 1} onChange={(e) => setForm({ ...form, planned_packages: Number(e.target.value) })} /></Field>
         <Field label="Fecha y hora inicio">
@@ -340,6 +352,7 @@ function SessionsAdmin() {
       </div>
       <DataTable data={sessions} columns={[
         { header: "Operario", accessorFn: (row) => row.employee?.full_name ?? row.employee_number },
+        { header: "Nro Planilla", accessorKey: "sheet_number" },
         { header: "Cancha", accessorFn: (row) => row.court?.name ?? row.court_id },
         { header: "Fecha inicio", cell: ({ row }) => new Date(row.original.started_at).toLocaleString("es-AR") },
         { header: "Bultos", accessorKey: "planned_packages" },

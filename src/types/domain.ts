@@ -57,6 +57,7 @@ export interface PickingSession {
   id: string;
   employee_id: string;
   employee_number: string;
+  sheet_number: string | null;
   court_id: string;
   planned_packages: number;
   expected_packages_per_hour: number;

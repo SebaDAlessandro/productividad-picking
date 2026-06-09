@@ -15,6 +15,7 @@ import type { PickingSession } from "../../types/domain";
 
 type RowDraft = {
   employeeNumber: string;
+  sheetNumber: string;
   plannedPackages: string;
   courtId: string;
   startedAt: string;
@@ -38,6 +39,7 @@ export function TeamPickingPage() {
   } = useOperationsData();
   const [draft, setDraft] = useState<RowDraft>({
     employeeNumber: "",
+    sheetNumber: "",
     plannedPackages: "",
     courtId: courts[0]?.id ?? "",
     startedAt: toDateTimeLocal(new Date()),
@@ -78,9 +80,14 @@ export function TeamPickingPage() {
       setMessage("Ese operario ya tiene una actividad en curso o pausada.");
       return;
     }
+    if (!draft.sheetNumber.trim()) {
+      setMessage("Debe cargar el Nro de Planilla.");
+      return;
+    }
     const actualStart = new Date();
     const result = await startSession({
       employeeNumber: draft.employeeNumber,
+      sheetNumber: draft.sheetNumber,
       plannedPackages: Number(draft.plannedPackages),
       courtId: draft.courtId,
       startedAt: actualStart.toISOString(),
@@ -91,6 +98,7 @@ export function TeamPickingPage() {
     }
     setDraft({
       employeeNumber: "",
+      sheetNumber: "",
       plannedPackages: "",
       courtId: courts[0]?.id ?? "",
       startedAt: toDateTimeLocal(new Date()),
@@ -176,7 +184,7 @@ export function TeamPickingPage() {
         <p className="mt-2 text-sm text-[color:var(--brand-muted)]">
           Permite que controlista, supervisor, administrador o superadministrador registren y operen varias actividades de pickeo del mismo dia.
         </p>
-        <div className="mt-5 grid gap-4 xl:grid-cols-2 2xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
+        <div className="mt-5 grid gap-4 xl:grid-cols-2 2xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
           <Field label="Operario">
             <Select
               value={draft.employeeNumber}
@@ -191,6 +199,13 @@ export function TeamPickingPage() {
                   </option>
                 ))}
             </Select>
+          </Field>
+          <Field label="Nro de Planilla">
+            <Input
+              value={draft.sheetNumber}
+              onChange={(event) => setDraft({ ...draft, sheetNumber: event.target.value })}
+              placeholder="Ingresar planilla"
+            />
           </Field>
           <Field label="Bultos a pickear">
             <Input
@@ -247,6 +262,7 @@ export function TeamPickingPage() {
             },
             { header: "Operario", accessorFn: (row) => row.employee?.full_name ?? row.employee_number },
             { header: "Legajo", accessorKey: "employee_number" },
+            { header: "Nro Planilla", accessorKey: "sheet_number" },
             { header: "Cancha", accessorFn: (row) => row.court?.name ?? row.court_id },
             { header: "Bultos", accessorKey: "planned_packages" },
             { header: "Inicio", cell: ({ row }) => format(new Date(row.original.started_at), "HH:mm") },

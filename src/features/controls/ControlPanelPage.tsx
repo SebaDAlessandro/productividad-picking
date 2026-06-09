@@ -73,6 +73,7 @@ export function ControlPanelPage() {
               },
               { header: "Operario", accessorFn: (row) => row.employee?.full_name ?? row.employee_number },
               { header: "Legajo", accessorKey: "employee_number" },
+              { header: "Nro Planilla", accessorKey: "sheet_number" },
               { header: "Cancha", accessorFn: (row) => row.court?.name },
               { header: "Bultos", accessorKey: "planned_packages" },
               { header: "Estado", cell: ({ row }) => <Badge color="yellow">{formatPickingStatus(row.original.status)}</Badge> },

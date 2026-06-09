@@ -288,6 +288,7 @@ export function DashboardPage() {
           columns={[
             { header: "Operario", accessorFn: (row) => row.employee?.full_name ?? row.employee_number },
             { header: "Legajo", accessorKey: "employee_number" },
+            { header: "Nro Planilla", accessorKey: "sheet_number" },
             { header: "Cancha", accessorFn: (row) => row.court?.name ?? row.court_id },
             { header: "Bultos", accessorKey: "planned_packages" },
             {

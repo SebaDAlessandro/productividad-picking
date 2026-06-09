@@ -37,7 +37,7 @@ export default function App() {
               <Route element={<ProtectedRoute permission="reports:view" />}>
                 <Route path="reports" element={<ReportsPage />} />
               </Route>
-              <Route element={<ProtectedRoute permission="admin:manage" />}>
+              <Route element={<ProtectedRoute permission="admin:operational" />}>
                 <Route path="admin" element={<AdminTablesPage />} />
               </Route>
               <Route element={<ProtectedRoute permission="audit:view" />}>

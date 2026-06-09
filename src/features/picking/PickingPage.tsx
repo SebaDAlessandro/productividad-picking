@@ -15,6 +15,7 @@ export function PickingPage() {
   const { employees, courts, pauseReasons, sessions, loading, error, startSession, addPause, resumeSession, finishSession } =
     useOperationsData();
   const [employeeNumber, setEmployeeNumber] = useState("");
+  const [sheetNumber, setSheetNumber] = useState("");
   const [plannedPackages, setPlannedPackages] = useState("");
   const [courtId, setCourtId] = useState("");
   const [startedAt, setStartedAt] = useState(() => toDateTimeLocal(new Date()));
@@ -51,6 +52,7 @@ export function PickingPage() {
     setElapsed(0);
     const result = await startSession({
       employeeNumber,
+      sheetNumber,
       plannedPackages: plannedPackagesNumber,
       courtId,
       startedAt: actualStart.toISOString(),
@@ -66,6 +68,7 @@ export function PickingPage() {
 
   function resetInputs() {
     setEmployeeNumber("");
+    setSheetNumber("");
     setPlannedPackages("");
     setCourtId("");
     setStartedAt(toDateTimeLocal(new Date()));
@@ -156,7 +159,7 @@ export function PickingPage() {
         <p className="mt-2 text-sm text-[color:var(--brand-muted)]">
           Selecciona el operario, los bultos y la cancha para calcular el tiempo teorico antes de iniciar.
         </p>
-        <div className="mt-5 grid gap-4 xl:grid-cols-2 2xl:grid-cols-4">
+        <div className="mt-5 grid gap-4 xl:grid-cols-2 2xl:grid-cols-5">
           <Field label="Operario">
             <Select value={employeeNumber} onChange={(event) => setEmployeeNumber(event.target.value)}>
               <option value="">Seleccionar operario</option>
@@ -168,6 +171,13 @@ export function PickingPage() {
                   </option>
                 ))}
             </Select>
+          </Field>
+          <Field label="Nro de Planilla">
+            <Input
+              value={sheetNumber}
+              onChange={(event) => setSheetNumber(event.target.value)}
+              placeholder="Ingresar planilla"
+            />
           </Field>
           <Field label="Bultos a pickear">
             <Input
@@ -204,6 +214,7 @@ export function PickingPage() {
           </p>
           <dl className="mt-3 grid gap-3 text-sm md:grid-cols-4">
             <Info label="Operario" value={employee?.full_name ?? "Legajo no encontrado"} />
+            <Info label="Nro de Planilla" value={sheetNumber || "Sin cargar"} />
             <Info label="Estado" value={employee?.is_active ? "Activo" : "Inactivo"} />
             <Info label="Estandar cancha" value={`${court?.expected_packages_per_hour ?? 0} bultos/h`} />
             <Info label="Tiempo teorico" value={formatDuration(expectedSeconds)} />

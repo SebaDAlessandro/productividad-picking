@@ -59,6 +59,7 @@ interface OperationsContextValue {
   refresh: () => Promise<void>;
   startSession: (input: {
     employeeNumber: string;
+    sheetNumber: string;
     plannedPackages: number;
     courtId: string;
     startedAt?: string;
@@ -183,6 +184,7 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
         if (!employee.is_active) return { error: "El operario esta inactivo." };
         const court = courts.find((item) => item.id === input.courtId);
         if (!court || !court.is_active) return { error: "La cancha no esta activa." };
+        if (!input.sheetNumber.trim()) return { error: "El Nro de Planilla es obligatorio." };
         if (input.plannedPackages <= 0) return { error: "Los bultos deben ser mayores a cero." };
 
         const requestedStart = input.startedAt ? new Date(input.startedAt) : new Date();
@@ -190,6 +192,7 @@ export function OperationsProvider({ children }: { children: ReactNode }) {
         const sessionPayload = {
           employee_id: employee.id,
           employee_number: employee.employee_number,
+          sheet_number: input.sheetNumber.trim(),
           court_id: court.id,
           planned_packages: input.plannedPackages,
           expected_packages_per_hour: court.expected_packages_per_hour,

@@ -61,6 +61,7 @@ create table if not exists public.picking_sessions (
   id uuid primary key default gen_random_uuid(),
   employee_id uuid not null references public.employees(id),
   employee_number text not null,
+  sheet_number text,
   court_id uuid not null references public.work_courts(id),
   planned_packages integer not null check (planned_packages > 0),
   expected_packages_per_hour numeric(10,2) not null check (expected_packages_per_hour > 0),

@@ -19,6 +19,7 @@ import { useEffect, useState } from "react";
 import { Button } from "../ui/Button";
 import { useAuth } from "../../hooks/useAuth";
 import { can } from "../../lib/permissions/roles";
+import { SupabaseUsageMiniCard } from "./SupabaseUsageMiniCard";
 
 const links = [
   { to: "/", label: "Dashboard", icon: BarChart3, permission: "dashboard:view" },
@@ -26,7 +27,7 @@ const links = [
   { to: "/team-picking", label: "Pickeo supervisado", icon: Users, permission: "team-picking:manage" },
   { to: "/controls", label: "Controlista", icon: ClipboardCheck, permission: "controls:write" },
   { to: "/reports", label: "Reportes", icon: FileText, permission: "reports:view" },
-  { to: "/admin", label: "Administracion", icon: Database, permission: "admin:manage" },
+  { to: "/admin", label: "Administracion", icon: Database, permission: "admin:operational" },
   { to: "/audit", label: "Auditoria", icon: History, permission: "audit:view" },
   { to: "/docs/manual", label: "Manual", icon: BookOpen, permission: "dashboard:view" },
   { to: "/docs/formulas", label: "Formulas", icon: Activity, permission: "dashboard:view" },
@@ -44,7 +45,7 @@ export function AppLayout() {
 
   return (
     <div className="min-h-screen bg-[color:var(--brand-bg)]">
-      <aside className="fixed inset-y-0 left-0 z-20 hidden w-72 border-r border-[color:var(--brand-border)] bg-[color:var(--brand-surface)] p-4 lg:block">
+      <aside className="fixed inset-y-0 left-0 z-20 hidden w-72 flex-col border-r border-[color:var(--brand-border)] bg-[color:var(--brand-surface)] p-4 lg:flex">
         <div className="mb-8 flex items-center gap-3">
           <span className="grid size-11 place-items-center rounded-lg bg-emerald-500 text-slate-950">
             <Shield size={22} />
@@ -74,6 +75,7 @@ export function AppLayout() {
               </NavLink>
             ))}
         </nav>
+        <SupabaseUsageMiniCard />
       </aside>
       <div className="lg:pl-72">
         <header className="sticky top-0 z-10 border-b border-[color:var(--brand-border)] bg-[color:var(--brand-bg)]/95 px-4 py-3 backdrop-blur md:px-6">
