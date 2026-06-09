@@ -11,8 +11,12 @@ import { toDateTimeLocal } from "../../lib/formatters/date";
 import { formatDuration, formatNumber, formatPercent } from "../../lib/formatters/number";
 import type { PickingSession } from "../../types/domain";
 
+const MAX_OPERATION_SECONDS = 40 * 60;
+const TIMEOUT_MESSAGE =
+  "El cronometro supero los 40 minutos permitidos. La actividad fue anulada y se elimino el registro. Debera solicitar al controlista o supervisor que realice un registro manual.";
+
 export function PickingPage() {
-  const { employees, courts, pauseReasons, sessions, loading, error, startSession, addPause, resumeSession, finishSession } =
+  const { employees, courts, pauseReasons, sessions, loading, error, startSession, addPause, resumeSession, finishSession, deleteSession } =
     useOperationsData();
   const [employeeNumber, setEmployeeNumber] = useState("");
   const [sheetNumber, setSheetNumber] = useState("");
@@ -25,6 +29,7 @@ export function PickingPage() {
   const [pauseReasonId, setPauseReasonId] = useState("");
   const [pauseNotes, setPauseNotes] = useState("");
   const [message, setMessage] = useState("");
+  const [timeoutSessionId, setTimeoutSessionId] = useState<string | null>(null);
 
   const employee = employees.find((item) => item.employee_number === employeeNumber);
   const court = courts.find((item) => item.id === courtId);
@@ -34,12 +39,21 @@ export function PickingPage() {
   const summarySession = completedSession ?? activeSession;
 
   useEffect(() => {
-    if (!activeSession || activeSession.status !== "in_progress") return;
+    if (!activeSession || !["in_progress", "paused"].includes(activeSession.status)) return;
     const timer = window.setInterval(() => {
       setElapsed(Math.max(0, Math.round((Date.now() - new Date(activeSession.started_at).getTime()) / 1000)));
     }, 1000);
     return () => window.clearInterval(timer);
   }, [activeSession]);
+
+  useEffect(() => {
+    if (!activeSession || timeoutSessionId === activeSession.id) return;
+    if (!["in_progress", "paused"].includes(activeSession.status)) return;
+    if (elapsed < MAX_OPERATION_SECONDS) return;
+
+    setTimeoutSessionId(activeSession.id);
+    void handleTimeout(activeSession);
+  }, [activeSession, elapsed, timeoutSessionId]);
 
   const openPause = useMemo(
     () => activeSession?.pauses?.find((pause) => !pause.pause_finished_at),
@@ -74,6 +88,25 @@ export function PickingPage() {
     setStartedAt(toDateTimeLocal(new Date()));
     setPauseReasonId("");
     setPauseNotes("");
+  }
+
+  async function handleTimeout(session: PickingSession) {
+    const result = await deleteSession(session.id);
+    setActiveSessionId(null);
+    setCompletedSession(null);
+    setElapsed(0);
+    setTimeoutSessionId(null);
+    resetInputs();
+
+    if (result.error) {
+      const errorMessage = `${TIMEOUT_MESSAGE} No se pudo borrar automaticamente el registro: ${result.error}`;
+      setMessage(errorMessage);
+      window.alert(errorMessage);
+      return;
+    }
+
+    setMessage(TIMEOUT_MESSAGE);
+    window.alert(TIMEOUT_MESSAGE);
   }
 
   async function pauseSession() {
