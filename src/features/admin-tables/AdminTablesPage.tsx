@@ -10,6 +10,7 @@ import { useAuth } from "../../hooks/useAuth";
 import { useOperationsData } from "../../hooks/useOperationsData";
 import { isSupabaseConfigured } from "../../lib/supabase/client";
 import { can } from "../../lib/permissions/roles";
+import { calculatePickingMetrics } from "../../lib/calculations/picking";
 import { fromDateTimeLocal, toDateTimeLocal } from "../../lib/formatters/date";
 import { formatPercent } from "../../lib/formatters/number";
 import { formatPickingStatus, pickingStatusOptions } from "../../lib/formatters/status";
@@ -224,23 +225,41 @@ function SessionsAdmin() {
     const employee = employees.find((item) => item.id === form.employee_id) ?? employees[0];
     const court = courts.find((item) => item.id === form.court_id) ?? courts[0];
     if (!employee || !court) return;
+    const plannedPackages = Number(form.planned_packages ?? 1);
+    const startedAt = form.started_at ?? now;
+    const finishedAt = form.finished_at ?? null;
+    const pauseDurationSeconds = form.pauses?.length
+      ? form.pauses.reduce((total, pause) => total + Number(pause.duration_seconds ?? 0), 0)
+      : Number(form.pause_duration_seconds ?? 0);
+    const shouldCalculateMetrics = Boolean(finishedAt);
+    const metrics = shouldCalculateMetrics
+      ? calculatePickingMetrics({
+          plannedPackages,
+          expectedPackagesPerHour: court.expected_packages_per_hour,
+          startedAt: new Date(startedAt),
+          finishedAt: new Date(finishedAt as string),
+          pauseDurationSeconds,
+          qualityPercentage: form.quality_control?.quality_percentage,
+        })
+      : null;
     const result = await upsertSession({
       id: form.id ?? crypto.randomUUID(),
       employee_id: employee.id,
       employee_number: employee.employee_number,
       sheet_number: form.sheet_number?.trim() || null,
       court_id: court.id,
-      planned_packages: Number(form.planned_packages ?? 1),
+      planned_packages: plannedPackages,
       expected_packages_per_hour: court.expected_packages_per_hour,
-      started_at: form.started_at ?? now,
-      finished_at: form.finished_at ?? null,
-      gross_duration_seconds: Number(form.gross_duration_seconds ?? 0),
-      pause_duration_seconds: Number(form.pause_duration_seconds ?? 0),
-      net_duration_seconds: Number(form.net_duration_seconds ?? 0),
-      real_packages_per_hour: Number(form.real_packages_per_hour ?? 0),
-      expected_completion_seconds: Number(form.expected_completion_seconds ?? 0),
-      productivity_percentage: Number(form.productivity_percentage ?? 0),
-      operational_index: form.operational_index ?? null,
+      started_at: startedAt,
+      finished_at: finishedAt,
+      gross_duration_seconds: metrics?.grossDurationSeconds ?? 0,
+      pause_duration_seconds: metrics?.pauseDurationSeconds ?? pauseDurationSeconds,
+      net_duration_seconds: metrics?.netDurationSeconds ?? 0,
+      real_packages_per_hour: metrics?.realPackagesPerHour ?? 0,
+      expected_completion_seconds:
+        metrics?.expectedCompletionSeconds ?? Math.round((plannedPackages / court.expected_packages_per_hour) * 3600),
+      productivity_percentage: metrics?.productivityPercentage ?? 0,
+      operational_index: metrics?.operationalIndex ?? form.operational_index ?? null,
       status: form.status ?? "draft",
       created_by: form.created_by ?? null,
       finalized_by: form.finalized_by ?? null,
